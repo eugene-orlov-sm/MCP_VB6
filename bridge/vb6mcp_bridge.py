@@ -5801,7 +5801,7 @@ def main(argv=None):
                          "--remote-write)")
     ap.add_argument("--ide-control-audit", default=None,
                     help="append-only JSONL audit log for the /ide face (default "
-                         "%TEMP%\\vb6mcp\\ide\\audit.jsonl; env VB6MCP_IDE_AUDIT)")
+                         "%%TEMP%%\\vb6mcp\\ide\\audit.jsonl; env VB6MCP_IDE_AUDIT)")
     ap.add_argument("--trust-proxy", action="store_true",
                     help="trust X-Forwarded-For/Forwarded from a LOOPBACK proxy; OFF by default, "
                          "so any proxy hint is treated as REMOTE (OPEN-33 P0 countermeasure)")

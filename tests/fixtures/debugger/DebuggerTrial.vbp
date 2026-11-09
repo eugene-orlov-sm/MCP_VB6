@@ -1,0 +1,12 @@
+Type=Exe
+Reference=*\G{00020430-0000-0000-C000-000000000046}#2.0#0#$(WinDir)\SysWOW64\stdole2.tlb#OLE Automation
+Module=MTrial; MTrial.bas
+Startup="Sub Main"
+Name="DebuggerTrial"
+Title="VB6MCP Debugger Trial"
+ExeName32="DebuggerTrial.exe"
+MajorVer=1
+MinorVer=0
+RevisionVer=0
+AutoIncrementVer=0
+CompatibleMode="0"

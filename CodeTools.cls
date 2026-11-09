@@ -14376,6 +14376,27 @@ Public Function ToolControlExecution(ByVal mode As String, Optional ByVal allowD
     If m = "run" Then
         If GetIdeState() = "break" Then m = "continue"
     End If
+    ' Paused commands must use the native dispatcher, outside CommandBars callbacks
+    If GetIdeState() = "break" Then
+        Select Case m
+            Case "continue", "resume", "step_into", "stepinto", "step_over", "stepover", "step_out", "stepout"
+                Dim nativeResult As Object, nativeWhy As String, nativeSent As Boolean
+                Set nativeResult = CreateObject("Scripting.Dictionary")
+                nativeSent = NativeDebugger.ExecuteCommand(Me, m, nativeWhy)
+                nativeResult("tool") = "control_execution"
+                nativeResult("mode") = m
+                nativeResult("stateBefore") = "break"
+                nativeResult("executed") = nativeSent
+                nativeResult("ok") = nativeSent
+                nativeResult("reason") = nativeWhy
+                nativeResult("delivery") = "native_debugger_shortcut"
+                nativeResult("commandBarsTouched") = False
+                nativeResult("state") = GetIdeState()
+                RunDiskAttach nativeResult, Nothing, nativeSent, CStr(nativeResult("state"))
+                ToolControlExecution = JsonStringify(nativeResult)
+                Exit Function
+        End Select
+    End If
     ' ---- R-1021-02: informed-consent gate + BEFORE snapshot -----------------
     ' The BEFORE snapshot is taken HERE, before the run/full_compile pre-run
     ' flush below, so the flush's own writes are inside the compared window.
@@ -16349,6 +16370,10 @@ Private Function ToolListWindows() As String
 End Function
 
 Private Function ToolControlWindow(ByVal window As String, ByVal action As String, ByVal caption As String, ByVal left As Long, ByVal top As Long, ByVal width As Long, ByVal height As Long, ByVal captionGiven As Boolean) As String
+    If GetIdeState() = "break" Then
+        ToolControlWindow = JsonStringify(NativeDebugger.ControlWindow(window, action))
+        Exit Function
+    End If
     Dim w As VBIDE.Window
     Set w = McpFindTools.FindWindow(Me, window)
     If w Is Nothing Then
@@ -16390,8 +16415,10 @@ Private Function ToolControlWindow(ByVal window As String, ByVal action As Strin
     pAssertBefore = ""
     pAssertOn = False
     pAssertVia = ""
-    pAssertComp = PaneCompOfWindowTarget(w.HWnd, w.Caption, pAssertVia)
-    If Len(pAssertComp) > 0 Then pAssertBefore = PaneTextOfName(pAssertComp, pAssertOn)
+    If w.Type = vbext_wt_CodeWindow Then
+        pAssertComp = PaneCompOfWindowTarget(w.HWnd, w.Caption, pAssertVia)
+        If Len(pAssertComp) > 0 Then pAssertBefore = PaneTextOfName(pAssertComp, pAssertOn)
+    End If
     fgBefore = WoFrontHwnd()
     Select Case LCase$(action)
         Case "activate"
@@ -32080,7 +32107,7 @@ Private Function ToolGetLocals(ByVal args As Object) As String
     root("localsAvailable") = False
     root("localsUnavailable") = False
     root("localsUnavailableReason") = ""
-    root("localsSource") = "SOURCE-DECLARED NAMES (current procedure: parameter list + Dim/Static declarations in its body) + VALUES read in the IDE immediate context, which in BREAK mode is the IDE's own current (innermost) call frame. No engine-internal frame call is made (measured: the frame-set thunk terminated the IDE). Names are never invented; values are never guessed."
+    root("localsSource") = "Names come from source declarations; values and types come from the native Immediate window in the selected debugger frame. No internal frame-set thunk is called"
     root("depthLimit") = 2
     root("widthLimit") = 20
     Dim fi As Long
@@ -32143,12 +32170,12 @@ Private Function ToolGetLocals(ByVal args As Object) As String
     If Len(ctxErr) > 0 Then
         root("localsUnavailable") = True
         root("localsUnavailableReason") = ctxErr
-        root("frameBinding") = "ideImmediateContext"
+        root("frameBinding") = "selectedDebuggerFrame"
         Set root("diagnostics") = diag
         ToolGetLocals = JsonStringify(root)
         Exit Function
     End If
-    root("frameBinding") = "ideImmediateContext"
+    root("frameBinding") = "selectedDebuggerFrame"
     root("contextAvailable") = True
     Dim vars As Object
     Set vars = McpWh2.Wh2SourceVars(Me, CStr(root("module")), CStr(root("proc")), root)
@@ -32159,7 +32186,7 @@ Private Function ToolGetLocals(ByVal args As Object) As String
         m_lastLocalNames.Add CStr(vars(vi)("name"))
     Next
     root("namesAllowList") = "the names below are the ONLY identifiers transcript[].watch will evaluate (unknown names are refused, not evaluated - an unknown identifier can hang the in-flight call)"
-    root("valueContext") = "ideImmediateContext: values are read from the IDE immediate context, which is NOT the break frame (measured: a*2 read 0 while a had been assigned 7) - treat every value as unverified; the NAMES are the reliable part"
+    root("valueContext") = "nativeImmediateWindow: values are evaluated by the IDE in the selected debugger frame"
     ' a bounded gate backstop for the value reads
     ArmGateRelease "get_locals", 8000
     root("gateArmedMs") = 8000
@@ -32180,20 +32207,11 @@ Private Function ToolGetLocals(ByVal args As Object) As String
         If v.Exists("nameSource") Then rec("nameSource") = v("nameSource")
         If rec.Exists("error") Then
             rec("valueRead") = False
-        ElseIf Len(CStr(rec("value"))) = 0 Then
-            If StrComp(CStr(rec("typeName")), "Empty", vbTextCompare) = 0 Then
-                rec("valueRead") = False
-                rec("valueUnavailable") = True
-                rec("note") = "the IDE immediate context returned no value for this name (it is NOT the break frame - measured); the NAME is still valid"
-            Else
-                rec("valueRead") = True
-                okAny = True
-            End If
         Else
             rec("valueRead") = True
             okAny = True
         End If
-        rec("valueTrust") = "unverified (ideImmediateContext is not the break frame)"
+        rec("valueTrust") = "nativeImmediateWindow (selected debugger frame)"
         out.Add rec
     Next
     root("localsCount") = out.Count
@@ -32204,7 +32222,7 @@ Private Function ToolGetLocals(ByVal args As Object) As String
         root("localsUnavailableReason") = "no_declared_locals: the current procedure declares no parameters and no Dim/Static locals"
     ElseIf Not okAny Then
         root("localsUnavailable") = True
-        root("localsUnavailableReason") = "values_unreadable: the NAMES above are the correct source declarations (sourceVarsCount>0); the VALUES are unavailable because the IDE immediate context is not the break frame (measured). This is a declared limitation, not a failure of the name scan."
+        root("localsUnavailableReason") = "values_unreadable: native Immediate-window evaluation did not complete; see the per-value errors"
     End If
     root("localsAvailable") = okAny
     root("ok") = okAny
@@ -32228,8 +32246,8 @@ Private Function ToolEvalAtFrame(ByVal args As Object) As String
     root("tool") = "eval_at_frame"
     root("ok") = False
     root("stopped_at") = ""
-    root("frameBinding") = "ideImmediateContext"
-    root("frameBindingNote") = "the IDE immediate context is NOT the break frame (measured: a*2 read 0 while a had been assigned 7); frame binding via the engine thunk is FORBIDDEN because it terminated the VB6 process (measured)"
+    root("frameBinding") = "selectedDebuggerFrame"
+    root("frameBindingNote") = "BREAK uses native Immediate-window input in the selected debugger frame; outer frame binding remains unsupported"
     root("depthLimit") = 2
     root("widthLimit") = 20
     root("howToRecover") = "if this call hangs: ide_state{release_inflight:true, release_min_held_ms:30000} frees the single-flight gate; if the IDE process itself is wedged, restart it (a debug-time evaluation does not change the project on disk)"
@@ -32303,7 +32321,7 @@ Private Function ToolEvalAtFrame(ByVal args As Object) As String
     root("module") = McpDb.DbPosField(Me, posJ, "module")
     Dim diag As Object
     Set diag = CreateObject("Scripting.Dictionary")
-    diag("frameBinding") = "ideImmediateContext"
+    diag("frameBinding") = "selectedDebuggerFrame"
     Dim ev As Object
     Set ev = McpWh2.Wh2EvalRaw(Me, expr)
     If Not ev Is Nothing Then Set root("immediate") = ev
@@ -32361,13 +32379,16 @@ Private Function ToolEvalAtFrame(ByVal args As Object) As String
             If Len(CStr(root("error"))) = 0 Then root("error") = "no value parsed (ret=" & CStr(ev("ret")) & ", execAnswered=" & CStr(ev("execAnswered")) & ")"
         End If
     End If
-    If safeCtx Or allowUnsafe Then
+    If Not safeCtx And allowUnsafe Then
+        root("inspectSkipped") = "Paused expressions are evaluated exactly once; implicit TypeName/inspection could invoke a function or property again"
+    ElseIf safeCtx Then
         Dim tnRoot As String
         tnRoot = ""
         If Not ev Is Nothing Then
             If ev.Exists("typeName") Then tnRoot = CStr(ev("typeName"))
         End If
         Set root("inspect") = McpWh2.Wh2Inspect(Me, expr, fi, diag, tnRoot)
+        If Len(tnRoot) = 0 Then root("typeName") = root("inspect")("typeName")
     Else
         root("inspectSkipped") = "inspection only runs in a safe context (design or allowUnsafeEval)"
     End If

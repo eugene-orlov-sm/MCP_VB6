@@ -352,6 +352,14 @@ Private Sub TimerTick()
         If Not m_mcp Is Nothing Then m_mcp.DoQuit
         Exit Sub
     End If
+    ' The pipe reply is written before consuming the deferred quit request
+    If Not m_mcp Is Nothing Then
+        If m_mcp.ConsumeQuit() Then
+            m_quitArmed = True
+            WsaSetTimer 150
+            Exit Sub
+        End If
+    End If
     ' pipe-only mode never created a listener, so it must not fall into
     ' the port-probing path (and it must still be pumped while idle).
     If m_mode = "pipe" Then

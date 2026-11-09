@@ -4,6 +4,19 @@
 
 > **Changelog**: [CHANGELOG.en.md](CHANGELOG.en.md)
 
+### Local debugger fixes (2026-11-09)
+
+This checkout repairs Python 3.14 argument-parser startup and parameter modifier parsing. In BREAK, continue and stepping use native keyboard shortcuts instead of suspended CommandBars. Evaluations use the real Immediate window and report values from its selected debugger frame; they no longer use EbExecuteLine for paused reads. Existing opt-in and object/outer-frame restrictions remain. Native input briefly requires foreground and focus, restores both afterwards, and refuses delivery when another modifier key is held or the IDE cannot acquire focus. Do not type while an operation drives the IDE.
+
+Paused control_window show/hide uses Win32 for an existing English-language debugger pane, avoiding the suspended VBIDE window model. Other paused window actions and panes that have not been created are refused promptly. Open Locals in DESIGN before running if needed. This local route has been verified on the installed English VB6 6.00.8176; it has not been verified on other UI languages.
+
+Pipe mode now uses the native message-window host instead of the hidden OCX form. This avoids the GeoClient IDE metadata timeout seen with the OCX host, while keeping the same named-pipe authentication and tool contract. Deferred pipe quit requests are consumed after their reply is sent.
+
+Regression commands: `python -m unittest discover -s tests -p test_bridge_startup.py`; `python tests/regression_debugger.py --pid <owned-fixture-pid> --output <results.json>`. Open `tests/fixtures/debugger/DebuggerTrial.vbp` in a disposable IDE with the add-in and bridge running first. The live regression refuses other project paths by default; `--project <path>` explicitly selects a copy of the fixture.
+
+Known limit from application validation: a private form-member evaluation timed out even though procedure constants and parameters were readable. A timeout returns no value; do not treat it as a successful read.
+
+
 VB6MCP is a **VB6 add-in**: once loaded into the VB6 IDE, the IDE itself becomes a
 [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server. AI coding assistants
 such as Claude Desktop, Cursor or Codex can then read, search and modify the VB6 project that

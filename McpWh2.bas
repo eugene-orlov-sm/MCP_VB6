@@ -16,31 +16,31 @@ Public Sub Wh2AddVar(Owner As CodeTools, ByRef out As Object, ByRef seenNames As
     Do
         stripped = False
         If Len(s) >= 9 Then
-            If StrComp(Left$(s, 8), "Optional ", vbTextCompare) = 0 Then
-                s = Trim$(Mid$(s, 9))
+            If StrComp(Left$(s, 9), "Optional ", vbTextCompare) = 0 Then
+                s = Trim$(Mid$(s, 10))
                 stripped = True
             End If
         End If
         If Not stripped Then
             If Len(s) >= 6 Then
-                If StrComp(Left$(s, 5), "ByVal ", vbTextCompare) = 0 Then
-                    s = Trim$(Mid$(s, 6))
+                If StrComp(Left$(s, 6), "ByVal ", vbTextCompare) = 0 Then
+                    s = Trim$(Mid$(s, 7))
                     stripped = True
                 End If
             End If
         End If
         If Not stripped Then
             If Len(s) >= 6 Then
-                If StrComp(Left$(s, 5), "ByRef ", vbTextCompare) = 0 Then
-                    s = Trim$(Mid$(s, 6))
+                If StrComp(Left$(s, 6), "ByRef ", vbTextCompare) = 0 Then
+                    s = Trim$(Mid$(s, 7))
                     stripped = True
                 End If
             End If
         End If
         If Not stripped Then
             If Len(s) >= 11 Then
-                If StrComp(Left$(s, 10), "ParamArray ", vbTextCompare) = 0 Then
-                    s = Trim$(Mid$(s, 11))
+                If StrComp(Left$(s, 11), "ParamArray ", vbTextCompare) = 0 Then
+                    s = Trim$(Mid$(s, 12))
                     stripped = True
                 End If
             End If
@@ -53,6 +53,7 @@ Public Sub Wh2AddVar(Owner As CodeTools, ByRef out As Object, ByRef seenNames As
     i = InStr(1, s, " As ", vbTextCompare)
     If i > 0 Then
         declaredType = Trim$(Mid$(s, i + 4))
+        If InStr(declaredType, "=") > 0 Then declaredType = Trim$(Left$(declaredType, InStr(declaredType, "=") - 1))
         s = Trim$(Left$(s, i - 1))
     End If
     ' drop array parentheses and any default value
@@ -105,7 +106,7 @@ End Function
 
 Public Function Wh2FrameContext(Owner As CodeTools, ByVal frameIndex As Long, ByRef diag As Object) As String
     Wh2FrameContext = ""
-    diag("frameBinding") = "ideImmediateContext (the IDE's own current frame; NO engine-internal frame call is made)"
+    diag("frameBinding") = "nativeImmediateWindow (selected debugger frame)"
     diag("frameBindingNote") = "the VBA6 frame-set thunk is deliberately NOT used: it terminated the IDE in a measured run. Use vba6_probe{frame_set:true} explicitly if you accept that risk."
     If frameIndex <> 0 Then
         Wh2FrameContext = "frame_index " & CStr(frameIndex) & " is an OUTER frame: reaching it needs the engine-internal frame-set call, which is refused here because it can terminate the IDE (measured). Only frame 0 (the IDE's current frame) is available."
@@ -419,6 +420,7 @@ Public Function Wh2ValueShape(Owner As CodeTools, ByVal expr As String, ByVal fr
         If d.Exists("typeName") Then tnv = CStr(d("typeName"))
         rec("typeName") = tnv
         Set rec("inspect") = Wh2Inspect(Owner, expr, frameIndex, diag, tnv)
+        If Len(tnv) = 0 Then rec("typeName") = rec("inspect")("typeName")
     Else
         If d Is Nothing Then
             rec("error") = "immediate_eval returned nothing"

@@ -305,7 +305,26 @@ Public Function ImExecuteImmediate(Owner As CodeTools, ByVal mode As String, ByV
     rDesc = ""
     On Error Resume Next
     Err.Clear
-    raw = Vba6Probe.ExecLineJson(execLine, 0, 0, 0, False, False, False)
+    If Owner.GetIdeState() = "break" Then
+        Dim nativeWhy As String
+        o("evaluationContext") = "nativeImmediateWindow"
+        o("frameBinding") = "selectedDebuggerFrame"
+        If NativeDebugger.EvaluateLine(Owner, execLine, sink, timeoutMs, nativeWhy) Then
+            raw = "{""called"":true,""ret"":0,""nativeImmediateWindow"":true}"
+        Else
+            Owner.m_armMs = 0
+            Owner.m_armTool = ""
+            Owner.m_armAt = 0
+            o("reason") = nativeWhy
+            o("elapsedMs") = WoGetTickCount() - t0
+            o("note") = "No value is reported without a completed native Immediate-window sink"
+            Set ImExecuteImmediate = o
+            Exit Function
+        End If
+    Else
+        o("evaluationContext") = "designImmediateContext"
+        raw = Vba6Probe.ExecLineJson(execLine, 0, 0, 0, False, False, False)
+    End If
     If Err.Number <> 0 Then
         raised = True
         rNum = Err.Number

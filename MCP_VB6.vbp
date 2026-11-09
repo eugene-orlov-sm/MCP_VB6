@@ -48,6 +48,7 @@ Module=McpProjTools; McpProjTools.bas
 Module=McpBuildTools; McpBuildTools.bas
 Module=McpFindTools; McpFindTools.bas
 Module=McpImTools; McpImTools.bas
+Module=NativeDebugger; NativeDebugger.bas
 Module=McpWh2; McpWh2.bas
 Module=McpDb; McpDb.bas
 Module=McpCls; McpCls.bas
@@ -70,7 +71,7 @@ MinorVer=0
 RevisionVer=0
 AutoIncrementVer=0
 ServerSupportFiles=0
-VersionComments=algo=vb6src/3;src=cef99abb67b1fa7fd7aecb441d01166e2a68395af33662243d6acf07651ecc34
+VersionComments=algo=vb6src/3;src=784b27558dfbcd47d77fa33d86ffc19a1b32f8359da761ad10a9d10019643cea
 VersionCompanyName="VB6MCP"
 CompilationType=0
 OptimizationType=0

@@ -100,6 +100,12 @@ Public Sub Shutdown()
 End Sub
 
 Private Function WantWinsockTransport() As Boolean
+    ' The native message window also hosts pipes without a hidden OCX form
+    ' The OCX form prevents GeoClient metadata callbacks from completing in the IDE
+    If PipeTransport.ResolveMode() = "pipe" Then
+        WantWinsockTransport = True
+        Exit Function
+    End If
     Dim s As String
     s = LCase$(Trim$(Environ$("VB6MCP_TRANSPORT")))
     If s = "winsock" Then
